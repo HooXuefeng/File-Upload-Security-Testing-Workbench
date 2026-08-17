@@ -92,3 +92,14 @@ check("multipart trailing hyphen preserved", fields.get("bizCode") == "ABC-")
 check("multipart file field detected", file_field == "file")
 
 print("\nAll core self-tests passed.")
+
+
+from uploadsentinel import build_safe_cases, filter_cases_by_level
+all_cases = build_safe_cases()
+low_cases = filter_cases_by_level(all_cases, "low")
+medium_cases = filter_cases_by_level(all_cases, "medium")
+high_cases = filter_cases_by_level(all_cases, "high")
+check("three-tier case library", {c.level for c in all_cases} == {"low","medium","high"})
+check("tier levels are cumulative", len(low_cases) < len(medium_cases) < len(high_cases))
+check("high includes all cases", len(high_cases) == len(all_cases))
+check("expanded benign case library", len(all_cases) >= 50)

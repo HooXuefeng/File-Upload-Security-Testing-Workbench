@@ -1,4 +1,4 @@
-# UploadSentinel v1.0
+# UploadSentinel v1.1
 
 > 文件上传安全测试工作台 / File Upload Security Testing Workbench
 
@@ -181,6 +181,32 @@ python uploadsentinel.py \
 ```
 
 ---
+
+
+## 🧪 三档测试强度 / Three Test Levels
+
+**v1.1 内置共 56 个无害测试用例：低档 15、中档 21、高档 20。**  
+**v1.1 includes 56 benign built-in cases: 15 Low, 21 Medium, and 20 High.**
+
+
+三档表示**测试覆盖范围与输入变异程度**，不是漏洞严重等级。
+
+| 档位 | 中文说明 | English |
+|---|---|---|
+| 低档 / Low | 正常格式、基础兼容性、简单文件名变化 | Common formats and basic compatibility |
+| 中档 / Medium | 低档 + 双后缀、MIME/内容不一致、空文件、未知类型 | Low + common mismatch and edge cases |
+| 高档 / High | 低/中档 + 更多特殊字符、长边界、非典型 MIME、较大无害内容 | Low + Medium + additional unusual-but-benign boundary cases |
+
+档位累计执行：
+
+```text
+Low    = Low
+Medium = Low + Medium
+High   = Low + Medium + High
+```
+
+所有档位仍然只使用无害、不可执行测试内容。
+
 
 ## 🧪 自检 / Self-test
 

@@ -40,6 +40,20 @@ GIF_MINIMAL = (
     b"\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02D\x01\x00;"
 )
 TEXT_PAYLOAD = b"UPLOAD_SENTINEL_SAFE_TEST\nNo executable content is present.\n"
+
+JPEG_MINIMAL = (
+    b"\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x00"
+    b"\x00\x01\x00\x01\x00\x00"
+    b"\xff\xdb\x00C\x00" + bytes([8] * 64) +
+    b"\xff\xd9"
+)
+XML_SAFE = b'<?xml version="1.0" encoding="UTF-8"?><uploadSentinel safe="true"/>'
+HTML_SAFE = b'<!doctype html><html><body>UPLOAD_SENTINEL_SAFE_TEST</body></html>'
+MARKDOWN_SAFE = b'# UploadSentinel Safe Test\n\nNo executable content.\n'
+UTF8_BOM_TEXT = b'\xef\xbb\xbfUPLOAD_SENTINEL_SAFE_TEST\n'
+CRLF_TEXT = b'UPLOAD_SENTINEL_SAFE_TEST\r\nSAFE_LINE_2\r\n'
+LARGE_SAFE_TEXT = (b'UPLOAD_SENTINEL_SAFE_TEST\n' * 8192)[:262144]
+TRAILING_SAFE_BLOCK = (b'SAFE_TRAILER_BLOCK\n' * 256)
 JSON_PAYLOAD = b'{"uploadSentinel":"safe-test","executable":false}\n'
 CSV_PAYLOAD = b"name,value\nupload_sentinel,safe_test\n"
 SVG_SAFE = (
@@ -71,6 +85,7 @@ class UploadCase:
     content: bytes
     description: str
     enabled: bool = True
+    level: str = "low"
 
 
 @dataclass
@@ -206,39 +221,96 @@ def ensure_requests():
         raise RuntimeError("Missing dependency: requests. Install with: pip install requests")
 
 
+LEVEL_RANK = {"low": 1, "medium": 2, "high": 3}
+
+def case_level_rank(level: str) -> int:
+    return LEVEL_RANK.get((level or "low").lower(), 1)
+
+def filter_cases_by_level(cases: List[UploadCase], max_level: str) -> List[UploadCase]:
+    max_rank = case_level_rank(max_level)
+    return [c for c in cases if case_level_rank(c.level) <= max_rank]
+
+
 def build_safe_cases() -> List[UploadCase]:
+    """Benign cases. Level means coverage breadth, not vulnerability severity."""
+    C = UploadCase
     return [
-        UploadCase("baseline","png_baseline","sentinel.png","image/png",PNG_1X1,"Normal PNG baseline"),
-        UploadCase("baseline","gif_baseline","sentinel.gif","image/gif",GIF_MINIMAL,"Normal GIF baseline"),
-        UploadCase("baseline","txt_baseline","sentinel.txt","text/plain",TEXT_PAYLOAD,"Normal text baseline"),
-        UploadCase("filename","upper_extension","sentinel.PNG","image/png",PNG_1X1,"Uppercase extension"),
-        UploadCase("filename","mixed_extension","sentinel.PnG","image/png",PNG_1X1,"Mixed-case extension"),
-        UploadCase("filename","double_extension","sentinel.txt.png","image/png",PNG_1X1,"Double extension"),
-        UploadCase("filename","triple_extension","sentinel.safe.txt.png","image/png",PNG_1X1,"Triple extension"),
-        UploadCase("filename","spaces","safe upload test.png","image/png",PNG_1X1,"Spaces in filename"),
-        UploadCase("filename","unicode","安全上传测试.png","image/png",PNG_1X1,"Unicode filename"),
-        UploadCase("filename","long_name",("a"*140)+".png","image/png",PNG_1X1,"Long filename"),
-        UploadCase("filename","leading_dot",".sentinel.png","image/png",PNG_1X1,"Leading dot filename"),
-        UploadCase("filename","many_dots","safe...test...png.png","image/png",PNG_1X1,"Many dots in filename"),
-        UploadCase("mime","png_octet_stream","sentinel.png","application/octet-stream",PNG_1X1,"Valid PNG, generic MIME"),
-        UploadCase("mime","png_text_plain","sentinel.png","text/plain",PNG_1X1,"Valid PNG, text/plain MIME"),
-        UploadCase("mime","txt_claim_png","sentinel.png","image/png",TEXT_PAYLOAD,"Text body claiming image/png"),
-        UploadCase("mime","png_claim_txt","sentinel.txt","text/plain",PNG_1X1,"PNG body claiming text/plain"),
-        UploadCase("mime","gif_claim_png","sentinel.png","image/png",GIF_MINIMAL,"GIF body claiming PNG"),
-        UploadCase("type","json_file","sentinel.json","application/json",JSON_PAYLOAD,"JSON handling"),
-        UploadCase("type","csv_file","sentinel.csv","text/csv",CSV_PAYLOAD,"CSV handling"),
-        UploadCase("type","svg_safe","sentinel.svg","image/svg+xml",SVG_SAFE,"Static SVG with no script"),
-        UploadCase("type","pdf_safe","sentinel.pdf","application/pdf",PDF_MINIMAL,"Minimal benign PDF"),
-        UploadCase("type","unknown_ext","sentinel.unknown","application/octet-stream",TEXT_PAYLOAD,"Unknown extension"),
-        UploadCase("type","no_extension","sentinel","application/octet-stream",TEXT_PAYLOAD,"No extension"),
-        UploadCase("content","empty_png","sentinel.png","image/png",b"","Empty file claiming PNG"),
-        UploadCase("content","tiny_text","sentinel.txt","text/plain",b"A","One-byte text file"),
-        UploadCase("content","png_trailing_text","sentinel.png","image/png",PNG_1X1+b"\nSAFE_TRAILER\n","PNG with harmless trailing bytes"),
+        # LOW / 基础
+        C("baseline","png_baseline","sentinel.png","image/png",PNG_1X1,"正常 PNG 基线 / Normal PNG baseline",level="low"),
+        C("baseline","jpeg_baseline","sentinel.jpg","image/jpeg",JPEG_MINIMAL,"正常 JPEG 基线 / Normal JPEG baseline",level="low"),
+        C("baseline","gif_baseline","sentinel.gif","image/gif",GIF_MINIMAL,"正常 GIF 基线 / Normal GIF baseline",level="low"),
+        C("baseline","txt_baseline","sentinel.txt","text/plain",TEXT_PAYLOAD,"正常文本基线 / Normal text baseline",level="low"),
+        C("filename","upper_extension","sentinel.PNG","image/png",PNG_1X1,"大写扩展名 / Uppercase extension",level="low"),
+        C("filename","mixed_extension","sentinel.PnG","image/png",PNG_1X1,"混合大小写扩展名 / Mixed-case extension",level="low"),
+        C("filename","spaces","safe upload test.png","image/png",PNG_1X1,"空格文件名 / Spaces in filename",level="low"),
+        C("filename","unicode","安全上传测试.png","image/png",PNG_1X1,"Unicode 文件名 / Unicode filename",level="low"),
+        C("filename","hyphen_name","safe-upload-test.png","image/png",PNG_1X1,"连字符文件名 / Hyphenated filename",level="low"),
+        C("filename","underscore_name","safe_upload_test.png","image/png",PNG_1X1,"下划线文件名 / Underscore filename",level="low"),
+        C("type","json_file","sentinel.json","application/json",JSON_PAYLOAD,"JSON 文件 / JSON file",level="low"),
+        C("type","csv_file","sentinel.csv","text/csv",CSV_PAYLOAD,"CSV 文件 / CSV file",level="low"),
+        C("type","svg_safe","sentinel.svg","image/svg+xml",SVG_SAFE,"静态无脚本 SVG / Static SVG without script",level="low"),
+        C("type","pdf_safe","sentinel.pdf","application/pdf",PDF_MINIMAL,"最小无害 PDF / Minimal benign PDF",level="low"),
+        C("content","tiny_text","sentinel-tiny.txt","text/plain",b"A","单字节文本 / One-byte text file",level="low"),
+
+        # MEDIUM / 推荐
+        C("filename","double_extension","sentinel.txt.png","image/png",PNG_1X1,"双后缀 / Double extension",level="medium"),
+        C("filename","triple_extension","sentinel.safe.txt.png","image/png",PNG_1X1,"三重后缀 / Triple extension",level="medium"),
+        C("filename","long_name",("a"*140)+".png","image/png",PNG_1X1,"较长文件名 / Long filename",level="medium"),
+        C("filename","leading_dot",".sentinel.png","image/png",PNG_1X1,"前导点文件名 / Leading-dot filename",level="medium"),
+        C("filename","many_dots","safe...test...png.png","image/png",PNG_1X1,"多点文件名 / Many dots",level="medium"),
+        C("filename","plus_name","safe+upload+test.png","image/png",PNG_1X1,"加号文件名 / Plus signs",level="medium"),
+        C("filename","parentheses_name","safe-upload(1).png","image/png",PNG_1X1,"括号文件名 / Parentheses",level="medium"),
+        C("filename","multiple_spaces","safe   upload   test.png","image/png",PNG_1X1,"连续空格 / Multiple spaces",level="medium"),
+        C("mime","png_octet_stream","sentinel.png","application/octet-stream",PNG_1X1,"PNG + application/octet-stream",level="medium"),
+        C("mime","png_text_plain","sentinel.png","text/plain",PNG_1X1,"PNG + text/plain",level="medium"),
+        C("mime","txt_claim_png","sentinel.png","image/png",TEXT_PAYLOAD,"文本声明为 PNG / Text claiming PNG",level="medium"),
+        C("mime","png_claim_txt","sentinel.txt","text/plain",PNG_1X1,"PNG 声明为文本 / PNG claiming text",level="medium"),
+        C("mime","gif_claim_png","sentinel.png","image/png",GIF_MINIMAL,"GIF 声明为 PNG / GIF claiming PNG",level="medium"),
+        C("type","xml_safe","sentinel.xml","application/xml",XML_SAFE,"静态 XML / Static XML",level="medium"),
+        C("type","markdown_safe","sentinel.md","text/markdown",MARKDOWN_SAFE,"Markdown 文件 / Markdown file",level="medium"),
+        C("type","unknown_ext","sentinel.unknown","application/octet-stream",TEXT_PAYLOAD,"未知扩展名 / Unknown extension",level="medium"),
+        C("type","no_extension","sentinel","application/octet-stream",TEXT_PAYLOAD,"无扩展名 / No extension",level="medium"),
+        C("content","empty_png","sentinel-empty.png","image/png",b"","空文件声明为 PNG / Empty PNG claim",level="medium"),
+        C("content","png_trailing_text","sentinel-trailer.png","image/png",PNG_1X1+b"\nSAFE_TRAILER\n","PNG 无害尾部数据 / Harmless trailer",level="medium"),
+        C("content","utf8_bom_text","sentinel-bom.txt","text/plain",UTF8_BOM_TEXT,"UTF-8 BOM 文本 / BOM text",level="medium"),
+        C("content","crlf_text","sentinel-crlf.txt","text/plain",CRLF_TEXT,"CRLF 文本 / CRLF text",level="medium"),
+
+        # HIGH / 全面
+        C("filename","very_long_name",("b"*220)+".png","image/png",PNG_1X1,"超长但有限文件名 / Very long bounded filename",level="high"),
+        C("filename","deep_extensions","sentinel.safe.data.txt.image.png","image/png",PNG_1X1,"多层扩展名 / Deep extensions",level="high"),
+        C("filename","reverse_double_ext","sentinel.png.txt","text/plain",TEXT_PAYLOAD,"反向双后缀 / Reverse double extension",level="high"),
+        C("filename","trailing_dot","sentinel.png.","image/png",PNG_1X1,"尾随点 / Trailing dot",level="high"),
+        C("filename","semicolon_name","safe;upload;test.png","image/png",PNG_1X1,"分号文件名 / Semicolons",level="high"),
+        C("filename","comma_name","safe,upload,test.png","image/png",PNG_1X1,"逗号文件名 / Commas",level="high"),
+        C("filename","brackets_name","safe[upload](test).png","image/png",PNG_1X1,"括号组合 / Brackets",level="high"),
+        C("filename","literal_percent_name","safe%20upload%20test.png","image/png",PNG_1X1,"百分号样式 / Percent-style filename",level="high"),
+        C("filename","hash_name","safe#tag.png","image/png",PNG_1X1,"# 字符文件名 / Hash character",level="high"),
+        C("filename","question_name","safe?tag.png","image/png",PNG_1X1,"? 字符文件名 / Question mark",level="high"),
+        C("mime","png_x_png","sentinel.png","image/x-png",PNG_1X1,"非标准 image/x-png",level="high"),
+        C("mime","png_binary_octet","sentinel.png","binary/octet-stream",PNG_1X1,"非标准 binary/octet-stream",level="high"),
+        C("mime","jpeg_claim_png","sentinel.png","image/png",JPEG_MINIMAL,"JPEG 声明为 PNG / JPEG claiming PNG",level="high"),
+        C("mime","png_claim_gif","sentinel.gif","image/gif",PNG_1X1,"PNG 声明为 GIF / PNG claiming GIF",level="high"),
+        C("mime","svg_claim_text","sentinel.txt","text/plain",SVG_SAFE,"SVG 声明为文本 / SVG claiming text",level="high"),
+        C("type","html_safe","sentinel.html","text/html",HTML_SAFE,"无脚本静态 HTML / Static HTML without script",level="high"),
+        C("type","dat_safe","sentinel.dat","application/octet-stream",TEXT_PAYLOAD,"DAT 通用类型 / DAT generic type",level="high"),
+        C("content","large_safe_text","sentinel-large.txt","text/plain",LARGE_SAFE_TEXT,"256KB 无害文本 / 256KB benign text",level="high"),
+        C("content","png_large_trailer","sentinel-large-trailer.png","image/png",PNG_1X1+TRAILING_SAFE_BLOCK,"PNG + 较大无害尾部块 / Larger harmless trailer",level="high"),
+        C("content","json_as_octet","sentinel.json","application/octet-stream",JSON_PAYLOAD,"JSON + 通用 MIME / JSON generic MIME",level="high"),
     ]
 
 
-def custom_case_from_text(name: str, category: str, filename: str, content_type: str, content: str) -> UploadCase:
-    return UploadCase(category or "custom", name, filename, content_type, content.encode("utf-8"), "Custom benign text payload")
+
+
+def custom_case_from_text(name: str, category: str, filename: str,
+                          content_type: str, content: str,
+                          level: str = "medium") -> UploadCase:
+    return UploadCase(
+        category or "custom", name, filename, content_type,
+        content.encode("utf-8"),
+        "自定义无害文本用例 / Custom benign text case",
+        True, level
+    )
+
 
 
 def parse_raw_request(text: str) -> RawRequest:
@@ -595,7 +667,7 @@ class Scanner:
 def save_project(path, config, custom_cases):
     obj={"version":5,"config":config,"custom_cases":[
         {"category":c.category,"name":c.name,"filename":c.filename,"content_type":c.content_type,
-         "content":c.content.decode("utf-8","replace"),"description":c.description,"enabled":c.enabled}
+         "content":c.content.decode("utf-8","replace"),"description":c.description,"enabled":c.enabled,"level":c.level}
         for c in custom_cases
     ]}
     Path(path).write_text(json.dumps(obj,ensure_ascii=False,indent=2),encoding="utf-8")
@@ -606,7 +678,7 @@ def load_project(path):
     custom=[]
     for x in obj.get("custom_cases",[]):
         custom.append(UploadCase(x.get("category","custom"),x["name"],x["filename"],x["content_type"],
-                                 x.get("content","").encode("utf-8"),x.get("description","Custom"),x.get("enabled",True)))
+                                 x.get("content","").encode("utf-8"),x.get("description","Custom"),x.get("enabled",True),x.get("level","medium")))
     return obj.get("config",{}), custom
 
 
@@ -708,14 +780,14 @@ def save_html(results,path,target):
             f"<td>{html.escape(r.notes)}</td>"
             "</tr>"
         )
-    doc=f"""<!doctype html><html><head><meta charset="utf-8"><title>UploadSentinel v1.0 Report</title>
+    doc=f"""<!doctype html><html><head><meta charset="utf-8"><title>UploadSentinel v1.1 Report</title>
 <style>
 body{{font-family:Arial;margin:26px;background:#f6f7f9;color:#222}}
 table{{border-collapse:collapse;width:100%;background:white}}
 th,td{{border:1px solid #ddd;padding:7px;font-size:13px;vertical-align:top}}
 th{{background:#eee;position:sticky;top:0}}
 </style></head><body>
-<h1>UploadSentinel v1.0 Report</h1><p>Target: {html.escape(target)}</p>
+<h1>UploadSentinel v1.1 Report</h1><p>Target: {html.escape(target)}</p>
 <p><b>REVIEW/HIGH_REVIEW means manual verification is recommended; it is not a confirmed vulnerability.</b></p>
 <table><thead><tr>
 <th>Verdict</th><th>Score</th><th>Cluster</th><th>Manual</th><th>Category</th><th>Case</th>
@@ -734,7 +806,7 @@ def parse_kv(items):
 
 
 def cli():
-    ap=argparse.ArgumentParser(description="UploadSentinel v1.0")
+    ap=argparse.ArgumentParser(description="UploadSentinel v1.1")
     src=ap.add_mutually_exclusive_group(required=True)
     src.add_argument("--url"); src.add_argument("--raw-request")
     ap.add_argument("--scheme",default="https",choices=["http","https"])
@@ -746,6 +818,7 @@ def cli():
     ap.add_argument("-k","--insecure",action="store_true")
     ap.add_argument("--no-ref-check",action="store_true")
     ap.add_argument("--category",action="append")
+    ap.add_argument("--level",choices=["low","medium","high"],default="high",help="Cumulative test level")
     ap.add_argument("-o","--output",default="uploadsentinel-v5-results")
     args=ap.parse_args()
 
@@ -755,7 +828,7 @@ def cli():
     else:
         scanner=Scanner(args.url,args.field,args.method,parse_kv(args.data),parse_kv(args.header),parse_kv(args.cookie),
                         args.proxy,args.timeout,not args.insecure,True,args.delay,not args.no_ref_check)
-    cases=build_safe_cases()
+    cases=filter_cases_by_level(build_safe_cases(), args.level)
     if args.category:
         wanted=set(args.category); cases=[x for x in cases if x.category in wanted]
     def prog(i,n,c,r):

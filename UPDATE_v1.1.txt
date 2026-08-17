@@ -1,0 +1,20 @@
+UploadSentinel v1.1 incremental update
+
+Replace only these files in your existing v1.0 GitHub repository:
+
+- uploadsentinel.py
+- uploadsentinel_qt.py
+- selftest.py
+- README.md
+- CHANGELOG.md
+- SECURITY.md
+- .github/ISSUE_TEMPLATE/bug_report.md
+
+No changes are required for:
+- requirements.txt
+- LICENSE
+- CONTRIBUTING.md
+- start_uploadsentinel.bat
+- debug_uploadsentinel.bat
+- startup_check.py
+- UploadSentinel.spec

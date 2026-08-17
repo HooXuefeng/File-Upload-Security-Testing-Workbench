@@ -2,6 +2,66 @@
 
 All notable changes to UploadSentinel will be documented in this file.
 
+## [1.1.0] - 2026-08-17
+
+### 中文
+
+#### Added
+
+- 文件上传测试用例扩展至 **56 项**
+- 新增 **低 / 中 / 高** 三档累计测试强度
+  - 低档：15 项
+  - 中档新增：21 项，执行时累计为 36 项
+  - 高档新增：20 项，执行时累计为 56 项
+- 扫描器新增测试档位选择和当前执行数量提示
+- 测试用例页面新增档位列与档位筛选
+- 自定义无害用例支持选择 Low / Medium / High
+- CLI 新增 `--level low|medium|high`
+- `.usproj` 保存和恢复测试档位
+
+#### Improved
+
+- 扩展文件名边界测试
+- 扩展 MIME / 内容不一致测试
+- 扩展常见文件类型和内容边界测试
+- 左侧品牌区域改为透明背景排版，移除矩形底色感
+
+#### Safety
+
+- 三档仅表示测试覆盖范围和输入变异程度，**不是漏洞等级**
+- 所有新增内置内容仍为无害、不可执行测试数据
+
+---
+
+### English
+
+#### Added
+
+- Expanded the built-in upload test library to **56 benign cases**
+- Added cumulative **Low / Medium / High** test levels
+  - Low: 15 cases
+  - Medium: 21 additional cases, 36 cumulative
+  - High: 20 additional cases, 56 cumulative
+- Added test-level selection and execution-count summary to the scanner
+- Added level column and filtering to the test-case page
+- Custom benign cases can select Low / Medium / High
+- Added CLI option `--level low|medium|high`
+- Project files now save and restore the selected test level
+
+#### Improved
+
+- Expanded filename boundary coverage
+- Expanded MIME/content mismatch coverage
+- Expanded benign file-type and content edge cases
+- Refined the sidebar brand area with transparent typography
+
+#### Safety
+
+- Levels describe testing breadth and input variation, **not vulnerability severity**
+- All new built-in cases remain benign and non-executable
+
+---
+
 ## [1.0.0] - 2026-08-17
 
 ### 中文

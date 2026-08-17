@@ -81,6 +81,11 @@ def qss(c):
         background: {c['bg']};
     }}
 
+    QLabel {{
+        background: transparent;
+        border: none;
+    }}
+
     QFrame#sidebar {{
         background: {c['panel']};
         border: none;
@@ -108,9 +113,12 @@ def qss(c):
     }}
 
     QLabel#brand {{
-        font-size: 14pt;
+        background: transparent;
+        border: none;
+        font-size: 15pt;
         font-weight: 600;
         color: {c['text']};
+        padding: 0px;
     }}
 
     QLabel#sectionTitle {{
@@ -339,17 +347,21 @@ class DropTextEdit(QPlainTextEdit):
 class CustomCaseDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Add Custom Benign Case")
+        self.setWindowTitle("添加自定义无害用例 / Add Custom Benign Case")
         form = QFormLayout(self)
         self.name = QLineEdit("custom_case")
         self.filename = QLineEdit("custom.txt")
         self.mime = QLineEdit("text/plain")
+        self.level = QComboBox()
+        self.level.addItems(["低档 / Low", "中档 / Medium", "高档 / High"])
+        self.level.setCurrentText("中档 / Medium")
         self.content = QPlainTextEdit("SAFE_CUSTOM_UPLOAD_TEST")
         self.content.setMaximumHeight(120)
-        form.addRow("Case name", self.name)
-        form.addRow("Filename", self.filename)
+        form.addRow("用例名称 / Case name", self.name)
+        form.addRow("文件名 / Filename", self.filename)
         form.addRow("Content-Type", self.mime)
-        form.addRow("Benign content", self.content)
+        form.addRow("测试档位 / Level", self.level)
+        form.addRow("无害内容 / Benign content", self.content)
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
@@ -449,7 +461,7 @@ class ThemeDialog(QDialog):
 class App(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("UploadSentinel v1.0")
+        self.setWindowTitle("UploadSentinel v1.1")
         self.resize(1520, 940)
 
         self.theme_name = "dark"
@@ -485,13 +497,50 @@ class App(QMainWindow):
         side = QVBoxLayout(self.sidebar)
         side.setContentsMargins(24,28,20,24)
 
+        brand_area = QWidget()
+        brand_area.setStyleSheet("background:transparent;border:none;")
+        brand_layout = QVBoxLayout(brand_area)
+        brand_layout.setContentsMargins(0, 0, 0, 0)
+        brand_layout.setSpacing(4)
+
         brand = QLabel("UploadSentinel")
         brand.setObjectName("brand")
-        side.addWidget(brand)
+        brand.setStyleSheet("background:transparent;border:none;")
+        brand_layout.addWidget(brand)
+
         sub = QLabel("文件上传安全测试工作台")
         sub.setObjectName("muted")
-        side.addWidget(sub)
-        side.addSpacing(18)
+        sub.setStyleSheet("background:transparent;border:none;")
+        brand_layout.addWidget(sub)
+
+        brand_bands = QWidget()
+        brand_bands.setFixedHeight(5)
+        brand_bands.setMaximumWidth(112)
+        brand_bands.setStyleSheet("background:transparent;border:none;")
+        band_row = QHBoxLayout(brand_bands)
+        band_row.setContentsMargins(0, 0, 0, 0)
+        band_row.setSpacing(0)
+
+        brand_band_main = QFrame()
+        brand_band_main.setStyleSheet(
+            f"background:{self.colors['band1']};border:none;"
+        )
+        brand_band_sub = QFrame()
+        brand_band_sub.setStyleSheet(
+            f"background:{self.colors['band2']};border:none;"
+        )
+        brand_band_dark = QFrame()
+        brand_band_dark.setStyleSheet(
+            f"background:{self.colors['darkshape']};border:none;"
+        )
+
+        band_row.addWidget(brand_band_main, 5)
+        band_row.addWidget(brand_band_sub, 2)
+        band_row.addWidget(brand_band_dark, 1)
+        brand_layout.addWidget(brand_bands)
+
+        side.addWidget(brand_area)
+        side.addSpacing(24)
 
         self.nav = {}
         for name in [
@@ -568,7 +617,7 @@ class App(QMainWindow):
         status_box = QVBoxLayout()
         self.top_status = QLabel("就绪")
         status_box.addWidget(self.top_status, alignment=Qt.AlignRight)
-        ver = QLabel("UploadSentinel v1.0")
+        ver = QLabel("UploadSentinel v1.1")
         ver.setObjectName("muted")
         status_box.addWidget(ver, alignment=Qt.AlignRight)
         tb.addLayout(status_box)
@@ -842,6 +891,12 @@ class App(QMainWindow):
         self.scan_preset.addItems(["温和", "标准", "快速"])
         self.scan_preset.setCurrentText("标准")
         self.scan_preset.currentTextChanged.connect(self.apply_scan_preset)
+        self.test_level = QComboBox()
+        self.test_level.addItems(["低档（基础）", "中档（推荐）", "高档（全面）"])
+        self.test_level.setCurrentText("中档（推荐）")
+        self.test_level.currentTextChanged.connect(self.update_level_summary)
+        self.level_summary = QLabel("")
+        self.level_summary.setObjectName("muted")
 
         form.addWidget(QLabel("文件字段"), 0, 0)
         form.addWidget(self.field, 0, 1)
@@ -861,6 +916,11 @@ class App(QMainWindow):
         form.addWidget(QLabel("聚类阈值"), 1, 4)
         form.addWidget(self.cluster_threshold, 1, 5)
 
+        form.addWidget(QLabel("扫描速度"), 2, 0)
+        form.addWidget(self.scan_preset, 2, 1)
+        form.addWidget(QLabel("测试档位"), 2, 2)
+        form.addWidget(self.test_level, 2, 3)
+        form.addWidget(self.level_summary, 2, 4, 1, 2)
         form.addWidget(QLabel("代理地址"), 3, 0)
         form.addWidget(self.proxy, 3, 1, 1, 5)
 
@@ -905,6 +965,29 @@ class App(QMainWindow):
         self.live_log.setReadOnly(True)
         lv.addWidget(self.live_log)
         lay.addWidget(log_card, 1)
+        self.update_level_summary()
+
+    def current_test_level(self):
+        value = self.test_level.currentText() if hasattr(self, "test_level") else "中档（推荐）"
+        if value.startswith("低"):
+            return "low"
+        if value.startswith("高"):
+            return "high"
+        return "medium"
+
+    def update_level_summary(self, *args):
+        from uploadsentinel import filter_cases_by_level
+        level = self.current_test_level()
+        cases = filter_cases_by_level(build_safe_cases(), level)
+        counts = {k: sum(c.level == k for c in cases) for k in ("low","medium","high")}
+        if level == "low":
+            label = f"共 {len(cases)} 项 · 低 {counts['low']}"
+        elif level == "medium":
+            label = f"共 {len(cases)} 项 · 低 {counts['low']} + 中 {counts['medium']}"
+        else:
+            label = f"共 {len(cases)} 项 · 低 {counts['low']} + 中 {counts['medium']} + 高 {counts['high']}"
+        if hasattr(self, "level_summary"):
+            self.level_summary.setText(label)
 
     def apply_scan_preset(self, name):
         """Apply conservative request-rate presets; all use benign test content."""
@@ -1012,6 +1095,9 @@ class App(QMainWindow):
         self.case_category = QComboBox()
         self.case_category.addItems(["全部分类","baseline","filename","mime","type","content","custom"])
         self.case_category.currentTextChanged.connect(self.populate_cases)
+        self.case_level_filter = QComboBox()
+        self.case_level_filter.addItems(["全部档位", "低档", "中档", "高档"])
+        self.case_level_filter.currentTextChanged.connect(self.populate_cases)
         add = QPushButton("添加自定义用例"); add.setObjectName("primary"); add.clicked.connect(self.add_custom_case)
         ena = QPushButton("全部启用"); ena.clicked.connect(lambda:self.set_all_cases(True))
         dis = QPushButton("全部禁用"); dis.clicked.connect(lambda:self.set_all_cases(False))
@@ -1019,10 +1105,11 @@ class App(QMainWindow):
         bar.addStretch()
         bar.addWidget(self.case_search, 1)
         bar.addWidget(self.case_category)
+        bar.addWidget(self.case_level_filter)
         lay.addLayout(bar)
 
-        self.case_table = QTableWidget(0,6)
-        self.case_table.setHorizontalHeaderLabels(["启用","分类","用例名称","文件名","MIME","说明"])
+        self.case_table = QTableWidget(0,7)
+        self.case_table.setHorizontalHeaderLabels(["启用","档位","分类","用例名称","文件名","MIME","说明"])
         self.case_table.setAlternatingRowColors(True)
         self.case_table.verticalHeader().setDefaultSectionSize(34)
         self.case_table.verticalHeader().setVisible(False)
@@ -1485,50 +1572,35 @@ class App(QMainWindow):
     def populate_cases(self, *args):
         if not hasattr(self, "case_table"):
             return
-
         cases = self.selected_cases()
-        query = ""
-        category = "全部分类"
-
-        if hasattr(self, "case_search"):
-            query = self.case_search.text().strip().lower()
-        if hasattr(self, "case_category"):
-            category = self.case_category.currentText()
+        query = self.case_search.text().strip().lower() if hasattr(self, "case_search") else ""
+        category = self.case_category.currentText() if hasattr(self, "case_category") else "全部分类"
+        level_filter = self.case_level_filter.currentText() if hasattr(self, "case_level_filter") else "全部档位"
+        filter_map = {"低档":"low","中档":"medium","高档":"high"}
+        level_cn = {"low":"低","medium":"中","high":"高"}
 
         visible = []
         for source_index, c in enumerate(cases):
             if category != "全部分类" and c.category != category:
                 continue
-
-            haystack = " ".join([
-                c.category, c.name, c.filename, c.content_type, c.description
-            ]).lower()
+            if level_filter != "全部档位" and c.level != filter_map.get(level_filter):
+                continue
+            haystack = " ".join([c.level,c.category,c.name,c.filename,c.content_type,c.description]).lower()
             if query and query not in haystack:
                 continue
-
-            visible.append((source_index, c))
+            visible.append((source_index,c))
 
         self.case_table.setRowCount(len(visible))
-        self.case_table.setProperty(
-            "sourceRows",
-            [source_index for source_index, _ in visible]
-        )
-
-        for r, (source_index, c) in enumerate(visible):
-            vals = [
-                "是" if c.enabled else "否",
-                c.category,
-                c.name,
-                c.filename,
-                c.content_type,
-                c.description,
-            ]
-            for col, val in enumerate(vals):
-                item = QTableWidgetItem(str(val))
-                item.setData(Qt.UserRole, source_index)
-                if col == 0:
+        self.case_table.setProperty("sourceRows",[i for i,_ in visible])
+        for r,(source_index,c) in enumerate(visible):
+            vals = ["是" if c.enabled else "否",level_cn.get(c.level,c.level),c.category,c.name,c.filename,c.content_type,c.description]
+            for col,val in enumerate(vals):
+                item=QTableWidgetItem(str(val))
+                item.setData(Qt.UserRole,source_index)
+                if col in (0,1):
                     item.setTextAlignment(Qt.AlignCenter)
-                self.case_table.setItem(r, col, item)
+                self.case_table.setItem(r,col,item)
+
     def toggle_case(self, row, col):
         source_rows = self.case_table.property("sourceRows") or []
         if row < 0 or row >= len(source_rows):
@@ -1555,16 +1627,20 @@ class App(QMainWindow):
         self.populate_cases()
 
     def add_custom_case(self):
-        d=CustomCaseDialog(self)
-        if d.exec()==QDialog.Accepted:
+        d = CustomCaseDialog(self)
+        if d.exec() == QDialog.Accepted:
+            level_text = d.level.currentText()
+            level = "low" if level_text.startswith("低") else "high" if level_text.startswith("高") else "medium"
             self.custom_cases.append(custom_case_from_text(
                 d.name.text().strip() or "custom_case",
                 "custom",
                 d.filename.text().strip() or "custom.txt",
                 d.mime.text().strip() or "text/plain",
-                d.content.toPlainText()
+                d.content.toPlainText(),
+                level
             ))
             self.populate_cases()
+            self.update_level_summary()
 
     def import_raw(self):
         p,_=QFileDialog.getOpenFileName(self,"导入原始 HTTP 请求","","Text files (*.txt);;All files (*)")
@@ -1622,7 +1698,8 @@ class App(QMainWindow):
         except Exception as e:
             QMessageBox.critical(self,"输入错误",str(e)); return
 
-        cases=[c for c in self.selected_cases() if c.enabled]
+        from uploadsentinel import filter_cases_by_level
+        cases=[c for c in filter_cases_by_level(self.selected_cases(), self.current_test_level()) if c.enabled]
         if not cases:
             QMessageBox.information(self,"没有可执行用例","请至少启用一个测试用例。"); return
 
@@ -1789,6 +1866,7 @@ class App(QMainWindow):
             "timeout":self.timeout.value(),
             "cluster_threshold":self.cluster_threshold.value(),
             "persist_history":self.persist_history.isChecked(),
+            "test_level":self.current_test_level(),
             "rules":self.current_rules().to_dict(),
             "raw_request":self.raw.toPlainText(),
             "data":self.data_text.toPlainText(),
@@ -1816,6 +1894,9 @@ class App(QMainWindow):
             self.timeout.setValue(int(cfg.get("timeout",15)))
             self.cluster_threshold.setValue(float(cfg.get("cluster_threshold",0.92)))
             self.persist_history.setChecked(bool(cfg.get("persist_history",False)))
+            saved_level=cfg.get("test_level","medium")
+            self.test_level.setCurrentText("低档（基础）" if saved_level=="low" else "高档（全面）" if saved_level=="high" else "中档（推荐）")
+            self.update_level_summary()
             rules = RuleConfig.from_dict(cfg.get("rules",{}))
             self.success_regex.setPlainText("\n".join(rules.success_regex))
             self.reject_regex.setPlainText("\n".join(rules.reject_regex))
@@ -1845,8 +1926,8 @@ class App(QMainWindow):
 
     def about(self):
         QMessageBox.information(
-            self,"关于 UploadSentinel v1.0",
-            "UploadSentinel v1.0"
+            self,"关于 UploadSentinel v1.1",
+            "UploadSentinel v1.1"
             "Qt-based file-upload security workbench with response clustering, custom verdict rules, and persistent history for authorized assessments.\n"
             "Built-in payloads are benign and non-executable.\n\n"
             "HIGH_REVIEW / REVIEW are triage signals, not confirmed vulnerabilities."
